@@ -1,3 +1,4 @@
+
 #include <Servo.h>
 #include <FastLED.h>
 #include <Wire.h>
@@ -236,6 +237,32 @@ void trellisBootLEDs() {
     trellis.setLED(i);
     trellis.writeDisplay();    
     delay(50);
+
+    /*Button steps*/
+    if(i == 0){ /*Turn to Ignition */
+      setStepper(1);
+    }
+    else if(i == 1){ /*Thermo turns on*/
+      setThermo(0);
+    }
+    else if(i == 2){  /*fan dial 1 && hex turn to Creativity && Thermo 1*/
+      setThermo(1);
+      setStepper(1);
+    }
+    else if (i == 3){ /*Fan dial 2 && Turn to Opportunity && Thermo 2*/
+      setThermo(2);
+      setStepper(1);
+    }
+    else if (i == 4){ /*Fan dial 3 && All LEDs && Turn to Interaction && Thermo 3*/
+      setThermo(3);
+      setStepper(1);
+    }
+    else if (i == 5){ /*Pull bolt && Turn to Spread*/
+      setStepper(1);
+    }
+    else if (i == 6){ /*Turn to blank*/
+    setStepper(1);
+    }
   }
   for (uint8_t i=0; i<TRELLIS_NUM_KEYS; i++) {
     trellis.clrLED(i);
@@ -263,8 +290,8 @@ void setPortion(int r, int g, int b, int start, int finish) {
   Serial.print(start);
   Serial.print(" | ");
   Serial.println(finish);
-//  fill_solid( &(leds[start]), &(leds[finish]), CRGB( r, g, b) );
-//  FastLED.show();
+  fill_solid( &(leds[start]), &(leds[finish]), CRGB( r, g, b) );
+  FastLED.show();
 }
 
 /**
@@ -282,4 +309,3 @@ void setThermo(int level) {
   Serial.println(levelHeight);
   setPortion(THERMO_COLOR_R, THERMO_COLOR_G, THERMO_COLOR_B, 0, (levelHeight * (level + 1)));
 }
-
