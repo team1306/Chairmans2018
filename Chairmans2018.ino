@@ -1,5 +1,4 @@
 
-#include <Servo.h>
 #include <FastLED.h>
 #include <Wire.h>
 #include "Adafruit_Trellis.h"
@@ -24,19 +23,12 @@ int thermoLevel = 0;
 const int TRELLIS_INT_PIN = A2;
 const int TRELLIS_NUM_KEYS = 16;
 
-// Ballz servo
-const int SERVO_PIN = 9;
-const int SERVO_OPEN = 180;
-const int SERVO_CLOSE = 0;
-bool currentServo = false;
-
 // Stepper
 const int STEPPER_ENABLE_PIN = 3;
 const int STEPPER_PIN = 5;
 const int STEPPER_DIR_PIN = 4;
 int currentStepper = 0;
 
-Servo ballServo;
 CRGB leds[NUM_LEDS];
 Adafruit_Trellis matrix0 = Adafruit_Trellis();
 Adafruit_TrellisSet trellis =  Adafruit_TrellisSet(&matrix0);
@@ -179,6 +171,7 @@ void trellisBootLEDs() {
     trellis.setLED(i);
     trellis.writeDisplay();    
     delay(50);
+  }
   for (uint8_t i=0; i<TRELLIS_NUM_KEYS; i++) {
     trellis.clrLED(i);
     trellis.writeDisplay();    
