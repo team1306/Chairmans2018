@@ -7,10 +7,6 @@
 // Comment out for prod to save memory
 #define DEBUG 1
 
-// Fan
-//const int TALON_PWM_PIN = 10;
-//int percent = 0;
-
 // LEDs
 const int LED_PIN = 6;
 const int NUM_LEDS = 300;
@@ -18,6 +14,7 @@ const int LED_BRIGHTNESS = 50;
 
 // Thermometer
 const int THERMO_LEDS = 40;
+const int THERMO_START = 100; // First thermo led
 const int THERMO_COLOR_R = 255;
 const int THERMO_COLOR_G = 0;
 const int THERMO_COLOR_B = 0;
@@ -39,7 +36,6 @@ const int STEPPER_PIN = 5;
 const int STEPPER_DIR_PIN = 4;
 int currentStepper = 0;
 
-Servo motor;
 Servo ballServo;
 CRGB leds[NUM_LEDS];
 Adafruit_Trellis matrix0 = Adafruit_Trellis();
@@ -49,21 +45,11 @@ void setup() {
   #ifdef DEBUG
     Serial.begin(9600);
     Serial.println("2018 Chairmans starting");
-//    Serial.println("Start talon");
-//  #endif
-//
-//  // Fan
-//  motor.attach(TALON_PWM_PIN);
-//  delay(100);
-//  
-//  #ifdef DEBUG
-//    Serial.println("Talon setup success");
     Serial.println("Start LED");
   #endif
 
   // LEDs
   FastLED.addLeds<NEOPIXEL,LED_PIN>(leds, NUM_LEDS);
-  delay(500);
   setAll(0, 0, 0);
   delay(100);
 
@@ -79,22 +65,16 @@ void setup() {
   delay(100);
   trellisBootLEDs();
 
-  // Servo
+  // Stepper
   #ifdef DEBUG
     Serial.println("Start trellis success");
-    Serial.println("Start servo");
+    Serial.println("Start stepper");
   #endif
-  ballServo.attach(10);
-  #ifdef DEBUG
-    Serial.println("Servo setup success");
-  #endif
-
-  // Stepper
-
   pinMode(6,OUTPUT); // Enable
   pinMode(5,OUTPUT); // Step
   pinMode(4,OUTPUT); // Dir
   #ifdef DEBUG
+    Serial.println("Stepper setup success");
     Serial.println("Startup success\n");
   #endif
 }
@@ -103,37 +83,33 @@ void loop() {
 
   switch(checkTrellis()) {
     // First row
-    case 0:
+    case 0: // Turn to Ignition
+      setStepper(1);
+    break;
+    case 1: // Thermo level 1
       setThermo(0);
     break;
-    case 1:
+    case 2: // Turns to Creativity && Thermo level 2 && Fan dial 1
       setThermo(1);
+      setStepper(1);
     break;
-    case 2:
+    case 3: // Turn to Oppertunity && Thermo level 3 && Fan dial 2
       setThermo(2);
-    break;
-    case 3:
-      setThermo(3);
+      setStepper(1); 
     break;
 
     // Second row
-    case 4:
-      setStepper(currentStepper++);
+    case 4: // Turn to Interaction && Thermo level 4 && Fan dial 3
+      setThermo(3);
+      setStepper(1);
     break;
-    case 5:
-      setBallz(!currentServo);
+    case 5: // Turn to Spread && pull bolt
+      setStepper(1);
+    break;
+    case 6: // Turn to blank
+      setStepper(1);
     break;
   }
-    
-//  setThermo(0);
-//  delay(3000);
-//  setThermo(1);
-//  delay(3000);
-//  setThermo(2);
-//  delay(3000);
-//  setThermo(3);
-//  delay(3000);
-
 }
 
 /**
@@ -149,6 +125,7 @@ void setStepper(int side) {
   // 200 steps = 1 rev
 //  Serial.println("Loop 200 steps (1 rev)");
   side = map(side, 0, 5, 0, 200);
+  enableStepper(true);
   for(int x = 0; x < side; x++) // Loop 200 times
   {
     digitalWrite(STEPPER_PIN,HIGH); // Output high
@@ -156,6 +133,7 @@ void setStepper(int side) {
     digitalWrite(STEPPER_PIN,LOW); // Output low
     delay(100); // Wait
   }
+  enableStepper(false);
 }
 
 /**
@@ -194,42 +172,6 @@ void enableStepper(bool isEnable) {
 }
 
 /**
- * Set the ballz servo
- * bool val - the value to set it to
- *  true - open
- *  false - close
- */
-void setBallz(bool val) {
-  if (val) {
-    ballServo.write(SERVO_OPEN);
-    currentServo = true;
-  } else {
-    ballServo.write(SERVO_CLOSE);
-    currentServo = false;
-  }
-}
-
-/**
- * Set the fan motor
- * int percent - percent to set the fan motor to
- *  -100 = full reverse
- *  0 = off
- *  100 = full forward
- */
-//void setFan(int percent) {
-//  if (percent < 0 || percent > 100) {
-//    Serial.println("setFan invalid percent");
-//    return;
-//  }
-//  // Scale up to 1000-2000
-//  int PWMvalue = percent * 5 + 1500;
-//
-//  motor.writeMicroseconds(PWMvalue);
-//  Serial.print("Set fan PWM to ");
-//  Serial.println(PWMvalue);
-//}
-
-/**
  * Boot LEDs on trelis
  */
 void trellisBootLEDs() {
@@ -237,33 +179,6 @@ void trellisBootLEDs() {
     trellis.setLED(i);
     trellis.writeDisplay();    
     delay(50);
-
-    /*Button steps*/
-    if(i == 0){ /*Turn to Ignition */
-      setStepper(1);
-    }
-    else if(i == 1){ /*Thermo turns on*/
-      setThermo(0);
-    }
-    else if(i == 2){  /*fan dial 1 && hex turn to Creativity && Thermo 1*/
-      setThermo(1);
-      setStepper(1);
-    }
-    else if (i == 3){ /*Fan dial 2 && Turn to Opportunity && Thermo 2*/
-      setThermo(2);
-      setStepper(1);
-    }
-    else if (i == 4){ /*Fan dial 3 && All LEDs && Turn to Interaction && Thermo 3*/
-      setThermo(3);
-      setStepper(1);
-    }
-    else if (i == 5){ /*Pull bolt && Turn to Spread*/
-      setStepper(1);
-    }
-    else if (i == 6){ /*Turn to blank*/
-    setStepper(1);
-    }
-  }
   for (uint8_t i=0; i<TRELLIS_NUM_KEYS; i++) {
     trellis.clrLED(i);
     trellis.writeDisplay();    
@@ -307,5 +222,5 @@ void setThermo(int level) {
   int levelHeight = THERMO_LEDS / 4;
   Serial.print("Set thermo level: ");
   Serial.println(levelHeight);
-  setPortion(THERMO_COLOR_R, THERMO_COLOR_G, THERMO_COLOR_B, 0, (levelHeight * (level + 1)));
+  setPortion(THERMO_COLOR_R, THERMO_COLOR_G, THERMO_COLOR_B, THERMO_START, (levelHeight * (level + 1)));
 }
