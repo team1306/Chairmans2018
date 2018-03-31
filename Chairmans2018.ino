@@ -1,6 +1,6 @@
-
 #include <FastLED.h>
 #include <Wire.h>
+#include <Stepper.h>
 #include "Adafruit_Trellis.h"
 
 // Comment out for prod to save memory
@@ -28,6 +28,9 @@ const int STEPPER_ENABLE_PIN = 3;
 const int STEPPER_PIN = 5;
 const int STEPPER_DIR_PIN = 4;
 int currentStepper = 0;
+
+//using Arduino Stepper Lib
+Stepper stepBoi(STEPS, 8, 9, 10, 11);
 
 CRGB leds[NUM_LEDS];
 Adafruit_Trellis matrix0 = Adafruit_Trellis();
@@ -69,14 +72,16 @@ void setup() {
     Serial.println("Stepper setup success");
     Serial.println("Startup success\n");
   #endif
-}
+  }
 
 void loop() {
-
+ stepBoi.step(200);
+/*
   switch(checkTrellis()) {
+    
+    
     // First row
     case 0: // Turn to Ignition
-      setStepper(1);
     break;
     case 1: // Thermo level 1
       setThermo(0);
@@ -102,6 +107,8 @@ void loop() {
       setStepper(1);
     break;
   }
+
+  */
 }
 
 /**
