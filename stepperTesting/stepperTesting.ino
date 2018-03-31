@@ -7,15 +7,15 @@ int x;
 void setup() 
 {
   Serial.begin(BAUD);
-  pinMode(6,OUTPUT); // Enable
+  pinMode(3,OUTPUT); // Enable
   pinMode(5,OUTPUT); // Step
   pinMode(4,OUTPUT); // Dir
-  digitalWrite(6,LOW); // Set Enable low
+  digitalWrite(3,LOW); // Set Enable low
 }
 
 void loop() 
 {
-  digitalWrite(6,LOW); // Set Enable low
+  digitalWrite(3,LOW); // Set Enable low
   digitalWrite(4,HIGH); // Set Dir high
   Serial.println("Loop 200 steps (1 rev)");
   for(x = 0; x < 200; x++) // Loop 200 times
