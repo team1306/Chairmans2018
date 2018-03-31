@@ -8,19 +8,27 @@
 
 // LEDs
 const int LED_PIN = 6;
-const int NUM_LEDS = 300;
-const int LED_BRIGHTNESS = 50;
+const int LED_START = 31;
+const int NUM_LEDS = 300; // TODO: figure this out
+
+// Hex LEDs
+const int HEX_LED_START = 110;  // TODO: figure this out
+const int NUM_HEX_LEDS = 20;
+const int HEX_LED_R = 255;
+const int HEX_LED_G = 255;
+const int HEX_LED_B = 255;
 
 // Thermometer
-const int THERMO_LEDS = 40;
-const int THERMO_START = 100; // First thermo led
+const int THERMO_START = 0; // First thermo led
+const int THERMO_LEVELS[] = {3, 10, 17, 24, 30};
+const int THERMO_DELAY = 100; // Delay for slide effect
 const int THERMO_COLOR_R = 255;
 const int THERMO_COLOR_G = 0;
 const int THERMO_COLOR_B = 0;
 int thermoLevel = 0;
 
 // Trellis button pad
-const int TRELLIS_INT_PIN = A2;
+const int TRELLIS_INT_PIN = A3;
 const int TRELLIS_NUM_KEYS = 16;
 
 // Stepper
@@ -62,9 +70,9 @@ void setup() {
     Serial.println("Start trellis success");
     Serial.println("Start stepper");
   #endif
-  pinMode(6,OUTPUT); // Enable
-  pinMode(5,OUTPUT); // Step
-  pinMode(4,OUTPUT); // Dir
+  pinMode(STEPPER_ENABLE_PIN,OUTPUT); // Enable
+  pinMode(STEPPER_PIN,OUTPUT); // Step
+  pinMode(STEPPER_DIR_PIN,OUTPUT); // Dir
   #ifdef DEBUG
     Serial.println("Stepper setup success");
     Serial.println("Startup success\n");
@@ -77,6 +85,7 @@ void loop() {
     // First row
     case 0: // Turn to Ignition
       setStepper(1);
+      setHexLEDs(true);
     break;
     case 1: // Thermo level 1
       setThermo(0);
@@ -102,29 +111,61 @@ void loop() {
     case 6: // Turn to blank
       setStepper(1);
     break;
+
+    // Reset button
+    case 15:
+      // TODO: reset stepper, turn off LEDs
+      setHexLEDs(false);
+    break;
+  }
+}
+
+/**
+ * Turn on/off the back LEDs
+ * bool on
+ *  true = LEDs on
+ *  false = LEDs off
+ */
+void setLEDs(bool on) {
+  if (on) {
+    // Turn on back LEDs
+  } else {
+    // Turn off back LEDs
+  }
+}
+
+/**
+ * Set the hex LEDs
+ * bool on
+ *  true = LEDs on
+ *  false = LEDs off
+ */
+void setHexLEDs(bool on) {
+  if (on) {
+    // Turn on
+    setPortion(HEX_LED_R, HEX_LED_G, HEX_LED_B, HEX_LED_START, NUM_LEDS);
+  } else {
+    // Turn off
+    setPortion(0, 0, 0, HEX_LED_START, NUM_LEDS);
   }
 }
 
 /**
  * Set the stepper motor to rotate
  * int side - side to display
- *  0-5 for the six sided display
+ *  0-5 step for the six sided display
  */
 void setStepper(int side) {
-  if (side > 5) {
-    side = 0;
-    currentStepper = 0;
-  }
   // 200 steps = 1 rev
-//  Serial.println("Loop 200 steps (1 rev)");
-  side = map(side, 0, 5, 0, 200);
+  // One step = about 33 steps
+  currentStepper++;
+  currentStepper = currentStepper % 6;
+  int steps = 33 * side;
   enableStepper(true);
-  for(int x = 0; x < side; x++) // Loop 200 times
-  {
-    digitalWrite(STEPPER_PIN,HIGH); // Output high
-    delay(10); // Wait
-    digitalWrite(STEPPER_PIN,LOW); // Output low
-    delay(100); // Wait
+  for(int x = 0; x < steps; x++) {
+    digitalWrite(STEPPER_PIN,HIGH);
+    delay(10);
+    digitalWrite(STEPPER_PIN,LOW);
   }
   enableStepper(false);
 }
@@ -196,25 +237,49 @@ void setAll(int r, int g, int b) {
  * int finish - last led
  */
 void setPortion(int r, int g, int b, int start, int finish) {
-  Serial.print(start);
-  Serial.print(" | ");
-  Serial.println(finish);
-  fill_solid( &(leds[start]), &(leds[finish]), CRGB( r, g, b) );
+  #ifdef DEBUG
+    Serial.print("setPortion: ");
+    Serial.print(start);
+    Serial.print(" | ");
+    Serial.println(finish);
+  #endif
+  fill_solid( &(leds[start]), finish, CRGB( r, g, b) );
   FastLED.show();
+}
+
+/**
+ * Set a portion of LEDs with a delay between each LED
+ * creates a slide effect
+ * int r, g, b - color
+ * int start - first LED
+ * int finish - last led
+ */
+void setPortion(int r, int g, int b, int start, int finish, int wait) {
+  for (int i = start; i < finish; i++) {
+    leds[i].setRGB( r, g, b);
+    FastLED.show();
+    delay(wait);
+  }
 }
 
 /**
  * Set the thermometer LEDs
  * int level - level to set
- *  0 to 3 for a total of four levels
+ *  0 to 5
+ *  0 = off
+ *  1-5 = thermo levels
  */
 void setThermo(int level) {
-  thermoLevel = level;
-  if (thermoLevel > 3) {
-    Serial.println("thermoLevel overflow!");
+  thermoLevel = level % 5;
+  #ifdef DEBUG
+    Serial.print("Set thermo level: ");
+    Serial.println(level);
+  #endif
+  if (thermoLevel == 0) {
+    // Set all thermo LEDs to off
+    setPortion(0, 0, 0, 0, LED_START);
+  } else {
+    // Set thermo leds
+    setPortion(THERMO_COLOR_R, THERMO_COLOR_G, THERMO_COLOR_B, THERMO_START, THERMO_LEVELS[level-1], THERMO_DELAY);
   }
-  int levelHeight = THERMO_LEDS / 4;
-  Serial.print("Set thermo level: ");
-  Serial.println(levelHeight);
-  setPortion(THERMO_COLOR_R, THERMO_COLOR_G, THERMO_COLOR_B, THERMO_START, (levelHeight * (level + 1)));
 }
