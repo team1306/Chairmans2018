@@ -163,22 +163,6 @@ CRGB getRandomFireColor() {
 }
 
 /**
- * Turn on/off the back LEDs
- * bool on
- *  true = LEDs on
- *  false = LEDs off
- */
-void setLEDs(bool on) {
-  if (on) {
-    // Turn on back LEDs
-    
-  } else {
-    // Turn off back LEDs
-    setPortion(0, 0, 0, LED_START, HEX_LED_START);
-  }
-}
-
-/**
  * Set the hex LEDs
  * bool on
  *  true = LEDs on
