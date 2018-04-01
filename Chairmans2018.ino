@@ -6,8 +6,11 @@
 // Comment out for prod to save memory
 #define DEBUG 1
 
+int loopi = 0;
+
 // LEDs
 const int LED_PIN = 6;
+int isFire = false;
 const int LED_START = 31;
 const int NUM_LEDS = 300; // TODO: figure this out
 
@@ -80,7 +83,7 @@ void setup() {
 }
 
 void loop() {
-
+  loopi++;
   switch(checkTrellis()) {
     // First row
     case 0: // Turn to Ignition
@@ -104,9 +107,12 @@ void loop() {
       // Set case lights to fire
       setThermo(3);
       setStepper(1);
+      isFire = true;
+      fireLEDs(false);
     break;
     case 5: // Turn to Spread && pull bolt
       setStepper(1);
+      isFire = true;
     break;
     case 6: // Turn to blank
       setStepper(1);
@@ -118,6 +124,42 @@ void loop() {
       setHexLEDs(false);
     break;
   }
+  if (isFire && loopi % 20 == 0) {
+    fireLEDs(true);
+  }
+}
+
+/**
+ * Set the background LEDs to fire
+ */
+void fireLEDs(bool showUpdate) {
+  for (int i = LED_START; i < HEX_LED_START; i++) {
+    int set = random(0, 100);
+    if (set > 10) {
+      // 90% chance to turn on LED with random fire color
+      leds[i] = getRandomFireColor();
+      if (showUpdate) {
+        FastLED.show();
+      }
+    } else {
+      // 10% chance for full red
+      leds[i].setRGB(random(180, 255), 0, 0);
+      if (showUpdate) {
+        FastLED.show();
+      }
+    }
+   FastLED.show();
+  }
+}
+
+/**
+ * Returns a CRGB color for fire
+ */
+CRGB getRandomFireColor() {
+  int r = random(70, 255);
+  int g = random(0, 70);
+  int b = random(0, 35);
+  return CRGB(r, g, b);
 }
 
 /**
@@ -129,8 +171,10 @@ void loop() {
 void setLEDs(bool on) {
   if (on) {
     // Turn on back LEDs
+    
   } else {
     // Turn off back LEDs
+    setPortion(0, 0, 0, LED_START, HEX_LED_START);
   }
 }
 
