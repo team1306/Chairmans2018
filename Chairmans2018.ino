@@ -1,10 +1,9 @@
-
 #include <FastLED.h>
 #include <Wire.h>
 #include "Adafruit_Trellis.h"
 
 // Comment out for prod to save memory
-#define DEBUG 1
+//#define DEBUG 1
 
 int loopi = 0;
 
@@ -12,10 +11,10 @@ int loopi = 0;
 const int LED_PIN = 6;
 int isFire = false;
 const int LED_START = 31;
-const int NUM_LEDS = 300; // TODO: figure this out
+const int NUM_LEDS = 250; // TODO: figure this out
 
 // Hex LEDs
-const int HEX_LED_START = 110;  // TODO: figure this out
+const int HEX_LED_START = 211;  // TODO: figure this out
 const int NUM_HEX_LEDS = 20;
 const int HEX_LED_R = 255;
 const int HEX_LED_G = 255;
@@ -45,8 +44,8 @@ Adafruit_Trellis matrix0 = Adafruit_Trellis();
 Adafruit_TrellisSet trellis =  Adafruit_TrellisSet(&matrix0);
 
 void setup() {
+  Serial.begin(9600);
   #ifdef DEBUG
-    Serial.begin(9600);
     Serial.println("2018 Chairmans starting");
     Serial.println("Start LED");
   #endif
@@ -80,38 +79,41 @@ void setup() {
     Serial.println("Stepper setup success");
     Serial.println("Startup success\n");
   #endif
+  setStepper(1);
 }
 
 void loop() {
+  delay(30);
   loopi++;
+//  Serial.print(checkTrellis());
   switch(checkTrellis()) {
     // First row
-    case 0: // Turn to Ignition
+    case 0: // Turn to Ignitions
       setStepper(1);
+      setThermo(1);
       setHexLEDs(true);
     break;
     case 1: // Thermo level 1
-      setThermo(0);
+      setThermo(2);
     break;
     case 2: // Turns to Creativity && Thermo level 2 && Fan dial 1
-      setThermo(1);
+      setThermo(3);
       setStepper(1);
     break;
     case 3: // Turn to Oppertunity && Thermo level 3 && Fan dial 2
-      setThermo(2);
+      setThermo(4);
       setStepper(1); 
     break;
 
     // Second row
     case 4: // Turn to Interaction && Thermo level 4 && Fan dial 3
       // Set case lights to fire
-      setThermo(3);
+      setThermo(5);
       setStepper(1);
-      isFire = true;
-      fireLEDs(false);
     break;
     case 5: // Turn to Spread && pull bolt
       setStepper(1);
+      fireLEDs(false);
       isFire = true;
     break;
     case 6: // Turn to blank
@@ -184,6 +186,7 @@ void setHexLEDs(bool on) {
  *  0-5 step for the six sided display
  */
 void setStepper(int side) {
+  Serial.println("Stepper");
   // 200 steps = 1 rev
   // One step = about 33 steps
   currentStepper++;
@@ -209,12 +212,15 @@ int checkTrellis() {
     for (uint8_t i=0; i<TRELLIS_NUM_KEYS; i++) {
       // if it was pressed, turn it on
       if (trellis.justPressed(i)) {
+        Serial.print("Just press: ");
+        Serial.println(i);
         trellis.setLED(i);
         trellis.writeDisplay();
         return i;
       }
     }
   }
+  return -1;
 }
 
 /**
@@ -224,7 +230,7 @@ int checkTrellis() {
  *  false - disable
  */
 void enableStepper(bool isEnable) {
-  if (isEnable) {
+  if (!isEnable) {
     // Set enable pin to low (disabled)
     digitalWrite(STEPPER_ENABLE_PIN, HIGH);
   } else {
@@ -254,8 +260,7 @@ void trellisBootLEDs() {
  * int r, g, b - color
  */
 void setAll(int r, int g, int b) {
-  fill_solid( &(leds[0]), 300, CRGB( r, g, b) );
-  FastLED.show();
+  setPortion(0, 0, 0, 0, NUM_LEDS);
 }
 
 /**
@@ -283,6 +288,10 @@ void setPortion(int r, int g, int b, int start, int finish) {
  * int finish - last led
  */
 void setPortion(int r, int g, int b, int start, int finish, int wait) {
+  Serial.print("setPortion");
+  Serial.print(start);
+  Serial.print(" | ");
+  Serial.println(finish);
   for (int i = start; i < finish; i++) {
     leds[i].setRGB( r, g, b);
     FastLED.show();
@@ -298,7 +307,7 @@ void setPortion(int r, int g, int b, int start, int finish, int wait) {
  *  1-5 = thermo levels
  */
 void setThermo(int level) {
-  thermoLevel = level % 5;
+  thermoLevel = level % 6;
   #ifdef DEBUG
     Serial.print("Set thermo level: ");
     Serial.println(level);
