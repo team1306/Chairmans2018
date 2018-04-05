@@ -34,7 +34,7 @@ const int TRELLIS_NUM_KEYS = 16;
 const int STEPPER_ENABLE_PIN = 3;
 const int STEPPER_PIN = 5;
 const int STEPPER_DIR_PIN = 4;
-const bool STEPPER_FORWARD = 0;
+const bool STEPPER_FORWARD = 1;
 int currentStepper = 0;
 
 CRGB leds[NUM_LEDS];
@@ -221,15 +221,21 @@ void setStepper(int side) {
     Serial.println(side); 
   #endif
   // 200 steps = 1 rev
-  // One step = about 33 steps
+  // One step = about 33 steps. Less to acount for sliding
   currentStepper++;
   currentStepper = currentStepper % 6;
-  int steps = 33 * side;
+  int steps = 30 * side;
   enableStepper(true);
-  for(int x = 0; x < steps; x++) {
+  for(int x = 0; x < steps * .80; x++) {
     digitalWrite(STEPPER_PIN,HIGH);
     delay(10);
     digitalWrite(STEPPER_PIN,LOW);
+  }
+  for(int x = 0; x < steps* .20; x++){
+    digitalWrite(STEPPER_PIN,HIGH);
+    delay(10);
+    digitalWrite(STEPPER_PIN,LOW);
+    delay(x);
   }
   enableStepper(false);
 }
