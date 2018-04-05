@@ -237,7 +237,7 @@ void setStepper(int side) {
     digitalWrite(STEPPER_PIN,HIGH);
     delay(10);
     digitalWrite(STEPPER_PIN,LOW);
-    delay(x);
+    delay((pow(x, 2) / 4);
   }
   enableStepper(false);
 }
