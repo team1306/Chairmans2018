@@ -102,6 +102,9 @@ void loop() {
         }
         trellis.writeDisplay();
 
+        //Keep reset LED on
+        trellis.setLED(15);
+
         switch(i) {
           // First row
           case 0: // Turn to Ignitions
@@ -130,12 +133,11 @@ void loop() {
           break;
           case 5: // Turn to Spread && pull bolt
             setStepper(1);
-            fireLEDs(false);
-            isFire = true; 
           break;
       
           // Reset button
           case 15:
+          Serial.println("Visual Reset");
             #ifdef DEBUG
               Serial.print("current stepper: ");
               Serial.println(currentStepper);
@@ -152,7 +154,7 @@ void loop() {
       }
     }
   }
-}
+}//
 
 /**
  * Set the background LEDs to fire
