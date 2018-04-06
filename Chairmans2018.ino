@@ -29,17 +29,23 @@ int thermoLevel = 0;
 // Trellis button pad
 const int TRELLIS_INT_PIN = A3;
 const int TRELLIS_NUM_KEYS = 16;
+int buttonPresses = 0;
+bool nextButtonClicked = false;
+bool lastButtonClicked = false;
 
 // Stepper
 const int STEPPER_ENABLE_PIN = 3;
 const int STEPPER_PIN = 5;
 const int STEPPER_DIR_PIN = 4;
 const bool STEPPER_FORWARD = 1;
+const bool STEPPER_BACKWARDS = 0;
 int currentStepper = 0;
+boolean resetButton = false;
 
 CRGB leds[NUM_LEDS];
 Adafruit_Trellis matrix0 = Adafruit_Trellis();
 Adafruit_TrellisSet trellis =  Adafruit_TrellisSet(&matrix0);
+
 
 void setup() {
   Serial.begin(9600);
@@ -79,7 +85,6 @@ void setup() {
     Serial.println("Startup success\n");
   #endif
 }
-
 void loop() {
   delay(30);
   if (trellis.readSwitches()) {
@@ -105,6 +110,50 @@ void loop() {
         //Keep reset LED on
         trellis.setLED(15);
 
+      }
+     if (trellis.justReleased(i)) {
+        trellis.clrLED(i);
+      }
+      /* if(resetButton){
+                stepperBack(5);
+            }*/
+    }
+    //NEW BUTTON CODE
+          if(trellis.justPressed(15)) {lastButtonClicked = true; nextButtonClicked = false;}
+
+    for (uint8_t i=0; i<TRELLIS_NUM_KEYS - 1; i++) {
+      if (trellis.justPressed(i)) {nextButtonClicked = true; lastButtonClicked = false;}
+    }
+        
+    if(lastButtonClicked){
+      //go to last step
+      if(buttonPresses == 0){toPhase(buttonPresses, false);}
+      else if(buttonPresses == 1){toPhase(buttonPresses, false);}
+      else if(buttonPresses == 2){toPhase(buttonPresses, false);}
+      else if(buttonPresses == 3){toPhase(buttonPresses, false);}
+      else if(buttonPresses == 4){toPhase(buttonPresses, false);}
+      else if(buttonPresses == 5){toPhase(buttonPresses, false);}
+      else if(buttonPresses >= 6){Serial.println("You shall not pass (the 5th step)");  }
+      else{Serial.println("You broke it, Congratulations");}
+      lastButtonClicked = false;
+    }
+    
+    else if  (nextButtonClicked){
+      //go to next step
+      if(buttonPresses == 0){toPhase(buttonPresses, true);}
+      else if(buttonPresses == 1){toPhase(buttonPresses, true);}
+      else if(buttonPresses == 2){toPhase(buttonPresses, true);}
+      else if(buttonPresses == 3){toPhase(buttonPresses, true);}
+      else if(buttonPresses == 4){toPhase(buttonPresses, true);}
+      else if(buttonPresses == 5){toPhase(buttonPresses, true);}
+      else if(buttonPresses >= 6){Serial.println("You shall not pass (the 5th step)");  }
+      else{Serial.println("You broke it, Congratulations");}
+      nextButtonClicked = false;
+    }
+  }  
+}    
+    //OLD BUTTON CODE
+          /*
         switch(i) {
           // First row
           case 0: // Turn to Ignitions
@@ -137,6 +186,7 @@ void loop() {
       
           // Reset button
           case 15:
+          resetButton = !resetButton;
           Serial.println("Visual Reset");
             #ifdef DEBUG
               Serial.print("current stepper: ");
@@ -144,17 +194,99 @@ void loop() {
             #endif
             setAll(0,0,0);
             setHexLEDs(true);
-            setStepper(currentStepper, !STEPPER_FORWARD);
+          //break switch-case
           break;
-        }
-        
+        }      
+        */ 
+
+/**
+ *Change the phase 
+ */
+void toPhase(int phase, bool forwards){
+  //go to next step
+      if(phase < 0) {Serial.println("You can't go to a step behind 0");}
+
+       if(!forwards){phase--;}
+  if(forwards){       
+      if(phase == 0){
+        setStepper(1);
+        setThermo(1);
       }
-     if (trellis.justReleased(i)) {
-        trellis.clrLED(i);
+      else if(phase == 1){
+        setThermo(2);
+        setStepper(1);
       }
-    }
+      else if(phase == 2){
+        setThermo(3);
+        setStepper(1);
+      }
+      else if(phase == 3){
+        setThermo(4);
+        setStepper(1);
+        fireLEDs(false);
+        isFire = true; 
+      }
+      else if(phase == 4){
+        // Set case lights to fire
+        setThermo(5);
+        setStepper(1);
+      }
+      else if(phase == 5){
+        setStepper(1);
+      }
+      else if(phase >= 6){
+        Serial.println("You shall not pass (the 5th step)");  
+      }
+      else{
+        Serial.println("You broke it, Congratulations");
+        Serial.println("ButtonPresses: "+phase);
+      }
   }
-}//
+
+    if(!forwards){       
+      if(phase == 0){
+        stepperBack(32);
+        setThermo(1);
+      }
+      else if(phase == 1){
+        setThermo(2);
+        stepperBack(32);
+      }
+      else if(phase == 2){
+        setThermo(3);
+        stepperBack(32);
+      }
+      else if(phase == 3){
+        setThermo(4);
+        stepperBack(32);
+        fireLEDs(false);
+        isFire = true; 
+      }
+      else if(phase == 4){
+        // Set case lights to fire
+        setThermo(5);
+        stepperBack(32);
+      }
+      else if(phase == 5){
+        stepperBack(32);
+      }
+      else if(phase >= 6){
+        Serial.println("You shall not pass (the 5th step)");  
+      }
+      else{
+        Serial.println("You broke it, Congratulations");
+      }
+  }
+
+      if(forwards){
+        buttonPresses++;
+      }
+      else{
+        buttonPresses--;
+      }
+      
+      nextButtonClicked = false;
+}
 
 /**
  * Set the background LEDs to fire
@@ -226,20 +358,21 @@ void setStepper(int side) {
   // One step = about 33 steps. Less to acount for sliding
   currentStepper++;
   currentStepper = currentStepper % 6;
-  int steps = 30 * side;
+  int steps = 32 * side;
   enableStepper(true);
-  for(int x = 0; x < steps * .80; x++) {
+  for(int x = 0; x < steps * .75; x++) {
     digitalWrite(STEPPER_PIN,HIGH);
     delay(10);
     digitalWrite(STEPPER_PIN,LOW);
   }
-  for(int x = 0; x < steps* .20; x++){
+  for(int x = 0; x < steps* .25; x++){
     digitalWrite(STEPPER_PIN,HIGH);
     delay(10);
     digitalWrite(STEPPER_PIN,LOW);
-    delay((pow(x, 2) / 4);
+    delay (pow(x, 2) / 4);
   }
   enableStepper(false);
+  stepperBack(2);
 }
 
 /**
@@ -261,6 +394,65 @@ void setStepper(int side, bool dir) {
   currentStepper++;
   currentStepper = currentStepper % 6;
   int steps = 11 * side;
+  enableStepper(true);
+  for(int x = 0; x < steps; x++) {
+    digitalWrite(STEPPER_PIN,HIGH);
+    delay(10);
+    digitalWrite(STEPPER_PIN,LOW);
+  }
+  enableStepper(false);
+}
+
+/**
+ * Set the stepper motor to rotate
+ * int side - side to display
+ *  0-5 step for the six sided display
+ */
+void setStepperBack(int side) {
+  digitalWrite(STEPPER_DIR_PIN, STEPPER_BACKWARDS);
+  #ifdef DEBUG
+    Serial.print("(f) Stepper dir: ");
+    Serial.print(STEPPER_FORWARD);
+    Serial.print(" side: ");
+    Serial.println(side); 
+  #endif
+  // 200 steps = 1 rev
+  // One step = about 33 steps. Less to acount for sliding
+  currentStepper++;
+  currentStepper = currentStepper % 6;
+  int steps = 32 * side;
+  enableStepper(true);
+  for(int x = 0; x < steps * .75; x++) {
+    digitalWrite(STEPPER_PIN,HIGH);
+    delay(10);
+    digitalWrite(STEPPER_PIN,LOW);
+  }
+  for(int x = 0; x < steps* .25; x++){
+    digitalWrite(STEPPER_PIN,HIGH);
+    delay(10);
+    digitalWrite(STEPPER_PIN,LOW);
+    delay (pow(x, 2) / 4);
+  }
+  enableStepper(false);
+  stepperBack(2);
+}
+
+
+/**
+ * Backwards boy
+ */
+void stepperBack(int steps) {
+  #ifdef DEBUG
+    Serial.print("Stepper dir: ");
+    Serial.print(dir);
+    Serial.print(" side: ");
+    Serial.println(side);    
+  #endif
+  digitalWrite(STEPPER_DIR_PIN, false);
+  // 200 steps = 1 rev
+  // One step = about 33 steps
+  currentStepper++;
+  currentStepper = currentStepper % 6;
   enableStepper(true);
   for(int x = 0; x < steps; x++) {
     digitalWrite(STEPPER_PIN,HIGH);
