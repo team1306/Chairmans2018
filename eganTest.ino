@@ -1,4 +1,4 @@
-#include <FastLED.h>
+  #include <FastLED.h>
 #include <Wire.h>
 #include "Adafruit_Trellis.h"
 
@@ -8,7 +8,7 @@
 // LEDs
 const int LED_PIN = 6;
 int isFire = false;
-const int LED_START = 30;
+const int LED_START = 31;
 const int NUM_LEDS = 231;
 
 // Hex LEDs
@@ -144,7 +144,7 @@ void toPhase(int phase, boolean forwards) {
   if(phase > -1 && phase < 6){
     setStepper(1, forwards);
     setThermo(phase);
-    if(phase == 3){
+    if(phase == 4){
         if(forwards){
       fireLEDs(true);
       isFire=true;}else{
@@ -191,8 +191,8 @@ void quenchLEDs(){
    Returns a CRGB color for fire
 */
 CRGB getRandomFireColor() {
-  int r = random(70, 255);
-  int g = random(0, 70);
+  int r = random(130, 255);
+  int g = random(0, 20);
   int b = random(0, 35);
   return CRGB(r, g, b);
 }
@@ -223,28 +223,28 @@ void setHexLEDs(bool on) {
     0-5 step for the six sided display
 */
 void setStepper(int side) {
-  digitalWrite(STEPPER_DIR_PIN, STEPPER_FORWARD);
-#ifdef DEBUG
-  Serial.print("(f) Stepper dir: ");
-  Serial.print(STEPPER_FORWARD);
-  Serial.print(" side: ");
-  Serial.println(side);
-#endif
+ digitalWrite(STEPPER_DIR_PIN, STEPPER_FORWARD);
+  #ifdef DEBUG
+    Serial.print("(f) Stepper dir: ");
+    Serial.print(STEPPER_FORWARD);
+    Serial.print(" side: ");
+    Serial.println(side); 
+  #endif
   // 200 steps = 1 rev
   // One step = about 33 steps. Less to acount for sliding
   currentStepper++;
   currentStepper = currentStepper % 6;
-  int steps = 32 * side;
+  int steps = 37 * side;
   enableStepper(true);
-  for (int x = 0; x < steps * .75; x++) {
-    digitalWrite(STEPPER_PIN, HIGH);
+  for(int x = 0; x < steps * .75; x++) {
+    digitalWrite(STEPPER_PIN,HIGH);
     delay(10);
-    digitalWrite(STEPPER_PIN, LOW);
+    digitalWrite(STEPPER_PIN,LOW);
   }
-  for (int x = 0; x < steps * .25; x++) {
-    digitalWrite(STEPPER_PIN, HIGH);
+  for(int x = 0; x < steps* .25; x++){
+    digitalWrite(STEPPER_PIN,HIGH);
     delay(10);
-    digitalWrite(STEPPER_PIN, LOW);
+    digitalWrite(STEPPER_PIN,LOW);
     delay (pow(x, 2) / 4);
   }
   enableStepper(false);
@@ -258,32 +258,29 @@ void setStepper(int side) {
    bool dir - direction
 */
 void setStepper(int side, bool dir) {
-digitalWrite(STEPPER_DIR_PIN, dir);
 #ifdef DEBUG
-  Serial.print("(f) Stepper dir: ");
-  Serial.print(STEPPER_FORWARD);
-  Serial.print(" side: ");
-  Serial.println(side);
-#endif
+    Serial.print("Stepper dir: ");
+    Serial.print(dir);
+    Serial.print(" side: ");
+    Serial.println(side);    
+  #endif
+  digitalWrite(STEPPER_DIR_PIN, dir);
   // 200 steps = 1 rev
-  // One step = about 33 steps. Less to acount for sliding
+  // One step = about 33 steps
   currentStepper++;
   currentStepper = currentStepper % 6;
-  int steps = 32 * side;
+  int steps = 33 * side;
   enableStepper(true);
-  for (int x = 0; x < steps * .75; x++) {
-    digitalWrite(STEPPER_PIN, HIGH);
+  for(int x = 0; x < steps; x++) {
+    digitalWrite(STEPPER_PIN,HIGH);
     delay(10);
-    digitalWrite(STEPPER_PIN, LOW);
+    digitalWrite(STEPPER_PIN,LOW);
   }
-  for (int x = 0; x < steps * .25; x++) {
-    digitalWrite(STEPPER_PIN, HIGH);
-    delay(10);
-    digitalWrite(STEPPER_PIN, LOW);
-    delay (pow(x, 2) / 4);
-  }
+  digitalWrite(STEPPER_DIR_PIN,!dir);
+  digitalWrite(STEPPER_PIN,HIGH);
+  delay(30);
+  digitalWrite(STEPPER_PIN,LOW);
   enableStepper(false);
-  stepperBack(2);
 }
 
 /**
@@ -293,27 +290,27 @@ digitalWrite(STEPPER_DIR_PIN, dir);
 */
 void setStepperBack(int side) {
   digitalWrite(STEPPER_DIR_PIN, STEPPER_BACKWARDS);
-#ifdef DEBUG
-  Serial.print("(f) Stepper dir: ");
-  Serial.print(STEPPER_FORWARD);
-  Serial.print(" side: ");
-  Serial.println(side);
-#endif
+  #ifdef DEBUG
+    Serial.print("(f) Stepper dir: ");
+    Serial.print(STEPPER_FORWARD);
+    Serial.print(" side: ");
+    Serial.println(side); 
+  #endif
   // 200 steps = 1 rev
   // One step = about 33 steps. Less to acount for sliding
   currentStepper++;
   currentStepper = currentStepper % 6;
   int steps = 32 * side;
   enableStepper(true);
-  for (int x = 0; x < steps * .75; x++) {
-    digitalWrite(STEPPER_PIN, HIGH);
+  for(int x = 0; x < steps * .75; x++) {
+    digitalWrite(STEPPER_PIN,HIGH);
     delay(10);
-    digitalWrite(STEPPER_PIN, LOW);
+    digitalWrite(STEPPER_PIN,LOW);
   }
-  for (int x = 0; x < steps * .25; x++) {
-    digitalWrite(STEPPER_PIN, HIGH);
+  for(int x = 0; x < steps* .25; x++){
+    digitalWrite(STEPPER_PIN,HIGH);
     delay(10);
-    digitalWrite(STEPPER_PIN, LOW);
+    digitalWrite(STEPPER_PIN,LOW);
     delay (pow(x, 2) / 4);
   }
   enableStepper(false);
@@ -325,22 +322,22 @@ void setStepperBack(int side) {
    Backwards boy
 */
 void stepperBack(int steps) {
-#ifdef DEBUG
-  Serial.print("Stepper dir: ");
-  Serial.print(dir);
-  Serial.print(" side: ");
-  Serial.println(side);
-#endif
+ #ifdef DEBUG
+    Serial.print("Stepper dir: ");
+    Serial.print(dir);
+    Serial.print(" side: ");
+    Serial.println(side);    
+  #endif
   digitalWrite(STEPPER_DIR_PIN, false);
   // 200 steps = 1 rev
   // One step = about 33 steps
   currentStepper++;
   currentStepper = currentStepper % 6;
   enableStepper(true);
-  for (int x = 0; x < steps; x++) {
-    digitalWrite(STEPPER_PIN, HIGH);
+  for(int x = 0; x < steps; x++) {
+    digitalWrite(STEPPER_PIN,HIGH);
     delay(10);
-    digitalWrite(STEPPER_PIN, LOW);
+    digitalWrite(STEPPER_PIN,LOW);
   }
   enableStepper(false);
 }
@@ -437,7 +434,7 @@ void setThermo(int level) {
     //code for reducing the thermometer
     int lowbound=THERMO_START;
       lowbound=THERMO_LEVELS[level];      
-    for(int i=THERMO_LEVELS[level+1];i>lowbound;i--){
+    for(int i=THERMO_LEVELS[level+1];i>lowbound-1;i--){
       leds[i].setRGB(0,0,0);
       FastLED.show();
     }
