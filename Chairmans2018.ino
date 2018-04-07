@@ -2,13 +2,15 @@
 #include <Wire.h>
 #include "Adafruit_Trellis.h"
 
+//IF THE LEDS LOOP FOREVER... SEE LINE 154
+
 // Comment out for prod to save memory
 //#define DEBUG 1
 
 // LEDs
 const int LED_PIN = 6;
 int isFire = false;
-const int LED_START = 30;
+const int LED_START = 32;
 const int NUM_LEDS = 231;
 
 // Hex LEDs
@@ -19,7 +21,7 @@ const int HEX_LED_B = 255;
 
 // Thermometer
 const int THERMO_START = 0; // First thermo led
-const int THERMO_LEVELS[] = {3, 10, 17, 24, 30};
+const int THERMO_LEVELS[] = {3, 10, 17, 24, 31};
 const int THERMO_DELAY = 100; // Delay for slide effect
 const int THERMO_COLOR_R = 255;
 const int THERMO_COLOR_G = 0;
@@ -32,6 +34,7 @@ const int TRELLIS_NUM_KEYS = 16;
 int buttonPresses = 0;
 bool nextButtonClicked = false;
 bool lastButtonClicked = false;
+bool resetButtonClicked = false;
 
 // Stepper
 const int STEPPER_ENABLE_PIN = 3;
@@ -119,38 +122,32 @@ void loop() {
             }*/
     }
     //NEW BUTTON CODE
-          if(trellis.justPressed(15)) {lastButtonClicked = true; nextButtonClicked = false;}
-
+    if(trellis.justPressed(0) && trellis.justPressed(3) && trellis.justPressed(15) && trellis.justPressed(12)) {
+       //reset
+      buttonPresses=0;
+      setAll(0,0,0);
+      setup();
+      //setStepper(6,false);
+      }
+    else if(trellis.justPressed(15)){ //go to last step
+      if(buttonPresses >= 0&&buttonPresses<6){toPhase(buttonPresses, false);}
+      else if(buttonPresses >= 6){Serial.println("You shall not pass (the 5th step)");  }
+      else{Serial.println("You broke it, Congratulations");}
+      lastButtonClicked = false;}
+    else { //go to next step
+      if(buttonPresses>=0&&buttonPresses<6){toPhase(buttonPresses, true);}
+      else if(buttonPresses >= 6){Serial.println("You shall not pass (the 5th step)");  }
+      else{Serial.println("You broke it, Congratulations");}
+      nextButtonClicked = false;}
+    /*This line might be causing the stepper to rotate twice
     for (uint8_t i=0; i<TRELLIS_NUM_KEYS - 1; i++) {
       if (trellis.justPressed(i)) {nextButtonClicked = true; lastButtonClicked = false;}
-    }
-        
-    if(lastButtonClicked){
-      //go to last step
-      if(buttonPresses == 0){toPhase(buttonPresses, false);}
-      else if(buttonPresses == 1){toPhase(buttonPresses, false);}
-      else if(buttonPresses == 2){toPhase(buttonPresses, false);}
-      else if(buttonPresses == 3){toPhase(buttonPresses, false);}
-      else if(buttonPresses == 4){toPhase(buttonPresses, false);}
-      else if(buttonPresses == 5){toPhase(buttonPresses, false);}
-      else if(buttonPresses >= 6){Serial.println("You shall not pass (the 5th step)");  }
-      else{Serial.println("You broke it, Congratulations");}
-      lastButtonClicked = false;
-    }
-    
-    else if  (nextButtonClicked){
-      //go to next step
-      if(buttonPresses == 0){toPhase(buttonPresses, true);}
-      else if(buttonPresses == 1){toPhase(buttonPresses, true);}
-      else if(buttonPresses == 2){toPhase(buttonPresses, true);}
-      else if(buttonPresses == 3){toPhase(buttonPresses, true);}
-      else if(buttonPresses == 4){toPhase(buttonPresses, true);}
-      else if(buttonPresses == 5){toPhase(buttonPresses, true);}
-      else if(buttonPresses >= 6){Serial.println("You shall not pass (the 5th step)");  }
-      else{Serial.println("You broke it, Congratulations");}
-      nextButtonClicked = false;
-    }
-  }  
+    }*/
+  }/*
+  if(isFire){//remove this whole section before actual presentation this is just for showcase
+    quenchLEDs(true);
+    fireLEDs(true);  
+  }*/
 }    
     //OLD BUTTON CODE
           /*
@@ -206,44 +203,27 @@ void toPhase(int phase, bool forwards){
   //go to next step
       if(phase < 0) {Serial.println("You can't go to a step behind 0");}
 
-       if(!forwards){phase--;}
-  if(forwards){       
-      if(phase == 0){
-        setStepper(1);
-        setThermo(1);
-      }
-      else if(phase == 1){
-        setThermo(2);
-        setStepper(1);
-      }
-      else if(phase == 2){
-        setThermo(3);
-        setStepper(1);
-      }
-      else if(phase == 3){
-        setThermo(4);
-        setStepper(1);
+       if(!forwards){phase--;buttonPresses--;}
+  if(forwards){     
+      setStepper(1);
+       setThermo(phase++);  
+      
+ if(phase == 3){
         fireLEDs(false);
         isFire = true; 
       }
-      else if(phase == 4){
-        // Set case lights to fire
-        setThermo(5);
-        setStepper(1);
-      }
-      else if(phase == 5){
-        setStepper(1);
-      }
       else if(phase >= 6){
         Serial.println("You shall not pass (the 5th step)");  
+
       }
       else{
         Serial.println("You broke it, Congratulations");
-        Serial.println("ButtonPresses: "+phase);
       }
+      Serial.print("ButtonPresses: ");
+      Serial.println(phase);
   }
 
-    if(!forwards){       
+  else  if(!forwards){       
       if(phase == 0){
         stepperBack(32);
         setThermo(1);
@@ -293,32 +273,31 @@ void toPhase(int phase, bool forwards){
  */
 void fireLEDs(bool showUpdate) {
   for (int i = LED_START; i < HEX_LED_START; i++) {
-    int set = random(0, 100);
-    if (set > 10) {
-      // 90% chance to turn on LED with random fire color
+    
       leds[i] = getRandomFireColor();
-      if (showUpdate) {
         FastLED.show();
-      }
-    } else {
-      // 10% chance for full red
-      leds[i].setRGB(random(180, 255), 0, 0);
-      if (showUpdate) {
-        FastLED.show();
-      }
+     
+  }
+}
+/**
+ * sets the background leds to off
+ */
+ void quenchLEDs(bool showUpdate) {
+  for (int i = LED_START; i < HEX_LED_START; i++) {
+    leds[i].setRGB(0,0,0);
+    FastLED.show();
     }
    FastLED.show();
   }
-}
-
 /**
  * Returns a CRGB color for fire
  */
 CRGB getRandomFireColor() {
-  int r = random(70, 255);
-  int g = random(0, 70);
-  int b = random(0, 35);
-  return CRGB(r, g, b);
+  int brightness=random(0,20);
+  int r = random(150, 200);
+  int g = random(0, 20);
+  int b = random(0, 3);
+  return CRGB(r+brightness*2, g+brightness, b+brightness);
 }
 
 /**
@@ -358,7 +337,7 @@ void setStepper(int side) {
   // One step = about 33 steps. Less to acount for sliding
   currentStepper++;
   currentStepper = currentStepper % 6;
-  int steps = 32 * side;
+  int steps = 37 * side;
   enableStepper(true);
   for(int x = 0; x < steps * .75; x++) {
     digitalWrite(STEPPER_PIN,HIGH);
@@ -526,7 +505,7 @@ void setPortion(int r, int g, int b, int start, int finish) {
  * creates a slide effect
  * int r, g, b - color
  * int start - first LED
- * int finish - last led
+ * int finish - las led
  */
 void setPortion(int r, int g, int b, int start, int finish, int wait) {
   #ifdef DEBUG
@@ -565,5 +544,5 @@ void setThermo(int level) {
       lowBound = THERMO_LEVELS[level-2];
     }
     setPortion(THERMO_COLOR_R, THERMO_COLOR_G, THERMO_COLOR_B, lowBound, THERMO_LEVELS[level-1], THERMO_DELAY);
-  }
+  } 
 }
