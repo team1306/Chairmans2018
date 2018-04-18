@@ -59,7 +59,8 @@ void loop() {
     setBackgroundRGB(255, 0, 0);
     setHexRGB(255, 0, 0);
     setThermoRGB(5, 255, 0, 0);
-    delay(effectTime); 
+    delay(effectTime);
+    ledReset(); 
     effect++;
   }else if(effect == 1){
     //All blue LEDs
@@ -67,6 +68,7 @@ void loop() {
     setHexRGB(0, 0, 255);
     setThermoRGB(5, 0, 0, 255);
     delay(effectTime); 
+    ledReset();
     effect++;
   }else if(effect == 2){
     //All green LEDs
@@ -74,6 +76,7 @@ void loop() {
     setHexRGB(0, 255, 0);
     setThermoRGB(5, 0, 255, 0);
     delay(effectTime); 
+    ledReset();
     effect++;
   }else if(effect == 3){
     //All white LEDs
@@ -81,12 +84,14 @@ void loop() {
     setHexRGB(255, 255, 255);
     setThermoRGB(5, 255, 255, 255);
     delay(effectTime); 
+    ledReset();
     effect++;
   }else if(effect == 4){
     //Fire LEDs
     fireLEDs(false);
     isFire = true; 
     delay(effectTime); 
+    ledReset();
     effect++;
   }else{
     effect = 0;
@@ -241,4 +246,11 @@ void setHexRGB(int R, int G, int B){
 
 void setBackgroundRGB(int R, int G, int B){
   setPortion(R, G , B, LED_START, HEX_LED_START);
+}
+
+void ledReset(){
+ for (int i = LED_START; i < NUM_LEDS; i++) {
+    leds[i].setRGB(0,0,0);
+    FastLED.show();
+  }
 }
