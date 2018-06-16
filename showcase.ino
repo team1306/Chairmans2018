@@ -27,6 +27,26 @@
  * be disabled while the LED strips are being updated or else
  * they will cause glitches on the LEDs).
  */
+// LEDs
+const int LED_PIN = 6;
+int isFire = false;
+const int LED_START = 31;
+const int NUM_LEDS = 231;
+
+// Hex LEDs
+const int HEX_LED_START = 211;  // TODO: figure this out
+const int HEX_LED_R = 255;
+const int HEX_LED_G = 255;
+const int HEX_LED_B = 255;
+
+// Thermometer
+const int THERMO_START = 0; // First thermo led
+const int THERMO_LEVELS[] = {3, 10, 17, 24, 30};
+const int THERMO_DELAY = 100; // Delay for slide effect
+const int THERMO_COLOR_R = 255;
+const int THERMO_COLOR_G = 0;
+const int THERMO_COLOR_B = 0;
+int thermoLevel = 0;
 
 #ifdef __AVR__
 #define HAS_EEPROM
@@ -174,7 +194,7 @@ void loop()
       delay(6);  // add an extra 6ms delay to slow things down
       break;
       
-    case BrightTwinkle:
+    case BrightTwinkle: //
       // random LEDs light up brightly and fade away; it is a very similar
       // algorithm to colorExplosion (just no radiating outward from the
       // LEDs that light up); as time goes on, allow progressively more
@@ -187,10 +207,6 @@ void loop()
       else if (loopCount < 650)
       {
         brightTwinkle(0, 2, 0);  // white and red for next 250 counts
-      }
-      else if (loopCount < 900) // :cut this?
-      {
-        brightTwinkle(1, 2, 0);  // red, and green for next 250 counts: (We can cut this part, and just extend Red-White phase)
       }
       else
       {
@@ -656,9 +672,8 @@ void gradient()
   // populate colors array with full-brightness gradient colors
   // (since the array indices are a function of loopCount, the gradient
   // colors scroll over time)
-  while (j < LED_COUNT)
+  while (j < LED_COUNT && LED_COUNT >= 31)
   {
-    // transition from red to green over 8 LEDs
     for (int i = 0; i < 8; i++)
     {
       if (j >= LED_COUNT){ break; }
@@ -672,6 +687,21 @@ void gradient()
       colors[(loopCount/2 + j + LED_COUNT)%LED_COUNT] = rgb_color(20*i, 160 - 20*i, (160 - 20*i)*20*i/160);
       j++;
     }
+    
+    setPortion(255. 0, 0, 0, 3); //:First portion of thermo
+    delay(2*loopCount);
+   
+    setPortion(255. 0, 0, 0, 10); //:First portion of thermo
+    delay(2*loopCount);
+    
+    setPortion(255. 0, 0, 0, 17); //:First portion of thermo
+    delay(2*loopCount);
+    
+    setPortion(255. 0, 0, 0, 24); //:First portion of thermo
+    delay(2*loopCount);
+    
+    setPortion(255. 0, 0, 0, 30); //:First portion of thermo
+    // transition from red to green over 8 LEDs
   }
   
   // modify the colors array to overlay the waves of dimness
@@ -961,4 +991,23 @@ unsigned char collision()
   }
   
   return 0;
+}
+
+/**
+   Set a prtion of LEDs to a color
+   int r, g, b - color
+   int start - first LED
+   int finish - last led
+*/
+void setPortion(int r, int g, int b, int start, int finish) {
+#ifdef DEBUG
+  Serial.print("setPortion: ");
+  Serial.print(start);
+  Serial.print(" | ");
+  Serial.println(finish);
+#endif
+  for (int i = start; i < finish; i++) {
+    leds[i].setRGB( r, g, b);
+  }
+  FastLED.show();
 }
