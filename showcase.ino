@@ -3,14 +3,16 @@
 #include "Adafruit_Trellis.h"
 
 //for when the stepper and trellis arent mounted anymore
-
+//LEDS (data) should be in PIN 6
+//LEDS ground to GND on Arduino
+//LEDS power to 5V on Arduino 
 // Comment out for prod to save memory
 //#define DEBUG 1
 
 // LEDs
 const int LED_PIN = 6;
 int isFire = false;
-const int LED_START = 32;
+const int LED_START = 31;
 const int NUM_LEDS = 231;
 
 // Hex LEDs
@@ -45,24 +47,48 @@ void setup() {
 
   // LEDs
   FastLED.addLeds<NEOPIXEL,LED_PIN>(leds, NUM_LEDS);
-  setAll(0, 0, 0);
+  setAll(255, 0, 0);
   delay(100);
   setHexLEDs(true);
   
   Serial.println("Startup success\n");
 }
 void loop() {
+
+  setAll(255,0,0);
+ /* BIG COMMENT START
   int effect = 0;
 
   if(effect == 0){
-    //All red LEDs
-    setBackgroundRGB(255, 0, 0);
-    setHexRGB(255, 0, 0);
-    setThermoRGB(5, 255, 0, 0);
+    //cycle colors
+    int part = 0;
+    setAll(255,0,0);
+    
+    for(int i = 0; i < NUM_LEDS; i++){        //effect #0 (idk)
+      if(part == 0){
+        setPortion(255,0,0,i,10);
+        part++;
+      }else if(part == 1){
+        setPortion(255,125,0,i,10);
+        part++;
+      }else if(part == 2){
+        setPortion(255,255,0,i,10);
+        part++;
+      }else if(part == 3){
+        setPortion(0,255,0,i,10);
+        part++;
+      }else if(part == 4){
+        setPortion(0,0,255,i,10);
+        part++;
+      }else if(part == 5){
+        setPortion(120,0,255,i,10);
+        part = 0;
+      }
+    }
     delay(effectTime);
     ledReset(); 
     effect++;
-  }else if(effect == 1){
+  }else if(effect == 1){        //effect #1 (blue)
     //All blue LEDs
     setBackgroundRGB(0, 0, 255);
     setHexRGB(0, 0, 255);
@@ -70,7 +96,7 @@ void loop() {
     delay(effectTime); 
     ledReset();
     effect++;
-  }else if(effect == 2){
+  }else if(effect == 2){        //effect #1 (green)
     //All green LEDs
     setBackgroundRGB(0, 255, 0);
     setHexRGB(0, 255, 0);
@@ -78,7 +104,7 @@ void loop() {
     delay(effectTime); 
     ledReset();
     effect++;
-  }else if(effect == 3){
+  }else if(effect == 3){        //effect #1 (white)
     //All white LEDs
     setBackgroundRGB(255, 255, 255);
     setHexRGB(255, 255, 255);
@@ -86,7 +112,7 @@ void loop() {
     delay(effectTime); 
     ledReset();
     effect++;
-  }else if(effect == 4){
+  }else if(effect == 4){        //effect #1 (fireLEDS)
     //Fire LEDs
     fireLEDs(false);
     isFire = true; 
@@ -96,7 +122,8 @@ void loop() {
   }else{
     effect = 0;
   }
-  
+  */
+  //BIG COMMENT END
 }    
 
 /**
@@ -156,7 +183,7 @@ void setHexLEDs(bool on) {
  * int r, g, b - color
  */
 void setAll(int r, int g, int b) {
-  setPortion(0, 0, 0, 0, NUM_LEDS);
+  setPortion(0, 0, 0, LED_START, NUM_LEDS);
 }
 
 /**
