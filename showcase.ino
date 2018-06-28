@@ -1,784 +1,271 @@
-/* LedStripXmas: A series of fun patterns for use with LED
- * strips set up as a Christmas lighting display.  You can see an
- * earlier version of this code running in this youtube video:
- * http://www.youtube.com/watch?v=VZRN0UrQSlc
- * To use this, you will need to plug the signal wire of an
- * Addressable RGB LED strip from Pololu into pin 12.
- *
- * You can optionally connect a switch between pin 3 and ground
- * to control if the Arduino automatically cycles through the
- * different patterns.  When no switch is present or the switch
- * is open, the patterns will cycle.
- * 
- * You can also optionally connect a button between pin 2 and
- * ground that displays the next pattern in the series each time
- * it is pushed.  This example requires the PololuLEDStrip
- * library to be installed.
- *
- * NOTE: Timing is determined entirely by a counter incremented
- * by the main loop, and the execution time of the main loop is
- * dominated by the time it takes to write the LED colors array
- * to the LED strips.  Changing LED_COUNT will change the
- * timing, so if you like the default timing and you have fewer
- * than 509 LEDs, you might want to add an appropriate delay to
- * the main loop.  Timing is not done with the Arduino's system
- * timer because that does not work properly when this program
- * is running (the interrupts that maintain the system time must
- * be disabled while the LED strips are being updated or else
- * they will cause glitches on the LEDs).
- */
-#include <FastLED.h>
-#include <Wire.h>
- 
-// LEDs
-const int LED_PIN = 6;
-int isFire = false;
-const int LED_START = 31;
-const int NUM_LEDS = 231;
+#include "FastLED.h"
 
-// Hex LEDs
-const int HEX_LED_START = 211;  // TODO: figure this out
-const int HEX_LED_R = 255;
-const int HEX_LED_G = 255;
-const int HEX_LED_B = 255;
-
-// Thermometer
-const int THERMO_START = 0; // First thermo led
-const int THERMO_LEVELS[] = {3, 10, 17, 24, 30};
-const int THERMO_DELAY = 100; // Delay for slide effect
-const int THERMO_COLOR_R = 255;
-const int THERMO_COLOR_G = 0;
-const int THERMO_COLOR_B = 0;
-int thermoLevel = 0;
+// How many leds in your strip?
+#define NUM_LEDS 231
+#define DATA_PIN 6
+#define FORWARD 0
+#define BACKWARD 1
+#define SLOW 250
+#define MEDIUM 50
+#define FAST 5
 
 CRGB leds[NUM_LEDS];
 
-#ifdef __AVR__
-#define HAS_EEPROM
-#endif
+boolean direction = FORWARD;
 
-#include <PololuLedStrip.h>
-
-#ifdef HAS_EEPROM
-#include <EEPROM.h>
-#endif
-
-// Create an ledStrip object on pin 12.
-#define LED_SIGNAL_PIN 12
-PololuLedStrip<LED_SIGNAL_PIN> ledStrip;
-
-#define NEXT_PATTERN_BUTTON_PIN  2  // button between this pin and ground
-#define AUTOCYCLE_SWITCH_PIN  3  // switch between this pin and ground
-
-// Create a buffer for holding 509 colors.
-// This takes 1527 bytes and uses up most of the 2KB RAM on an Uno,
-// so we should be very sparing with additional RAM use and keep
-// an eye out for possible stack overflow problems.
-#define LED_COUNT 509
-rgb_color colors[LED_COUNT];
-
-#define NUM_STATES  7  // number of patterns to cycle through
-
-// system timer, incremented by one every time through the main loop
-unsigned int loopCount = 0;
-
-unsigned int seed = 0;  // used to initialize random number generator
-
-// enumerate the possible patterns in the order they will cycle
-enum Pattern {
-  RandomColorWalk = 1,
-  TraditionalColors = 2,
-  ColorExplosion = 3,
-  Collision = 4,
-  AllOff = 255
-};
-unsigned char pattern = AllOff;
-unsigned int maxLoops;  // go to next state when loopCount >= maxLoops
-
-
-// initialization stuff
-void setup()
-{
-  // initialize the random number generator with a seed obtained by
-  // summing the voltages on the disconnected analog inputs
-  for (int i = 0; i < 5; i++)
-  {
-    seed += analogRead(i);
-  }
-  #ifdef HAS_EEPROM
-    seed += EEPROM.read(0);  // get part of the seed from EEPROM
-  #endif
-  randomSeed(seed);
-
-  #ifdef HAS_EEPROM
-    // save a random number in EEPROM to be used for random seed
-    // generation the next time the program runs
-    EEPROM.write(0, random(256));
-  #endif
-
-  // optionally connect a switch between this pin and ground
-  // when the input is low, freeze the cycle at the current pattern
-  pinMode(AUTOCYCLE_SWITCH_PIN, INPUT_PULLUP);
-  
-  // optionally connect a button between this pin and ground
-  // when the input goes low, advance to the next pattern in cycle
-  pinMode(NEXT_PATTERN_BUTTON_PIN, INPUT_PULLUP);
-  
-  delay(10);  // give pull-ups time raise the input voltage
+void setup() { 
+  FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);
+  randomSeed(analogRead(0));
+  Serial.begin(9600);
 }
 
+void loop() { 
 
-// main loop
-void loop()
-{
-  handleNextPatternButton();
-  
-  if (loopCount == 0)
-  {
-    // whenever timer resets, clear the LED colors array (all off)
-    for (int i = 0; i < LED_COUNT; i++)
-    {
-      colors[i] = rgb_color(0, 0, 0);
-    }
-  }
-  
-  if (pattern == RandomColorWalk)
-  {
-    // for these two patterns, we want to make sure we get the same
-    // random sequence six times in a row (this provides smoother
-    // random fluctuations in brightness/color)
-    if (loopCount % 6 == 0)
-    {
-      seed = random(30000);
-    }
-    randomSeed(seed);
-  }
-  
-  // call the appropriate pattern routine based on state; these
-  // routines just set the colors in the colors array
-  switch (pattern)
-  {
-      
-    case RandomColorWalk:
-      // start with alternating red and green colors that randomly walk
-      // to other colors for 400 loopCounts, fading over last 80
-      maxLoops = 400;
-      randomColorWalk(loopCount == 0 ? 1 : 0, loopCount > maxLoops - 80);
-      break;
-      
-    case ColorExplosion:
-      // bursts of random color that radiate outwards from random points
-      // for 630 loop counts; no burst generation for the last 70 counts
-      // of every 200 count cycle or over the over final 100 counts
-      // (this creates a repeating bloom/decay effect)
-      maxLoops = 630;
-      colorExplosion((loopCount % 200 > 130) || (loopCount > maxLoops - 100));
-      break;
-      
-    case Collision:
-      // colors grow towards each other from the two ends of the strips,
-      // accelerating until they collide and the whole strip flashes
-      // white and fades; this repeats until the function indicates it
-      // is done by returning 1, at which point we stop keeping maxLoops
-      // just ahead of loopCount
-      if (!collision())
-      {
-        maxLoops = loopCount + 2;
-      }
-      break;
-  } 
+  rainbow(0,NULL);
+  delay(3000);
+  colorWipe(CRGB::Black,FORWARD,FAST);
+  allRandom();
+  delay(3000);
+  disolve(15,100,MEDIUM);
 
-  // update the LED strips with the colors in the colors array
-  ledStrip.write(colors, LED_COUNT);
-  loopCount++;  // increment our loop counter/timer.
-
-  if (loopCount >= maxLoops && digitalRead(AUTOCYCLE_SWITCH_PIN))
-  {
-    // if the time is up for the current pattern and the optional hold
-    // switch is not grounding the AUTOCYCLE_SWITCH_PIN, clear the
-    // loop counter and advance to the next pattern in the cycle
-    loopCount = 0;  // reset timer
-    pattern = ((unsigned char)(pattern+1))%NUM_STATES;  // advance to next pattern
+  for(int i=0; i<3; i++){
+    CRGB c1 = randomColor();
+    CRGB c2 = randomColor();
+    stripes(c1,c2,5);
+    delay(2000);
+    stripes(c2,c1,5);
+    delay(2000);
   }
+
+  for(int i=0; i<2; i++){
+    cylon(randomColor(), 10,FAST);
+  }
+
+
+  lightning(NULL,15,50,MEDIUM);
+  lightning(CRGB::White,20,50,MEDIUM);
+
+  for(int i=0; i<3; i++){
+    theaterChase(randomColor(),10,SLOW);
+  }
+
+  theaterChaseRainbow(1,MEDIUM);
+
+  rainbow(FAST,1);
+
+  flash(randomColor(),10,SLOW);
+
+  flash(NULL,50,MEDIUM);
+
+  for(int i=0; i<2; i++){ 
+    colorWipe(randomColor(),FAST,direction);
+    direction = !direction;
+  }
+
+
 }
 
-
-// This function detects if the optional next pattern button is pressed
-// (connecting the pin to ground) and advances to the next pattern
-// in the cycle if so.  It also debounces the button.
-void handleNextPatternButton()
-{
-  if (digitalRead(NEXT_PATTERN_BUTTON_PIN) == 0)
-  {
-    // if optional button is pressed
-    while (digitalRead(NEXT_PATTERN_BUTTON_PIN) == 0)
-    {
-      // wait for button to be released
-      while (digitalRead(NEXT_PATTERN_BUTTON_PIN) == 0);
-      delay(10);  // debounce the button
-    }
-    loopCount = 0;  // reset timer
-    pattern = ((unsigned char)(pattern+1))%NUM_STATES;  // advance to next pattern
-  }
-}
-
-
-// This function applies a random walk to val by increasing or
-// decreasing it by changeAmount or by leaving it unchanged.
-// val is a pointer to the byte to be randomly changed.
-// The new value of val will always be within [0, maxVal].
-// A walk direction of 0 decreases val and a walk direction of 1
-// increases val.  The directions argument specifies the number of
-// possible walk directions to choose from, so when directions is 1, val
-// will always decrease; when directions is 2, val will have a 50% chance
-// of increasing and a 50% chance of decreasing; when directions is 3,
-// val has an equal chance of increasing, decreasing, or staying the same.
-void randomWalk(unsigned char *val, unsigned char maxVal, unsigned char changeAmount, unsigned char directions)
-{
-  unsigned char walk = random(directions);  // direction of random walk
-  if (walk == 0)
-  {
-    // decrease val by changeAmount down to a min of 0
-    if (*val >= changeAmount)
-    {
-      *val -= changeAmount;
-    }
-    else
-    {
-      *val = 0;
-    }
-  }
-  else if (walk == 1)
-  {
-    // increase val by changeAmount up to a max of maxVal
-    if (*val <= maxVal - changeAmount)
-    {
-      *val += changeAmount;
-    }
-    else
-    {
-      *val = maxVal;
-    }
-  }
-}
-
-
-// This function fades val by decreasing it by an amount proportional
-// to its current value.  The fadeTime argument determines the
-// how quickly the value fades.  The new value of val will be:
-//   val = val - val*2^(-fadeTime)
-// So a smaller fadeTime value leads to a quicker fade.
-// If val is greater than zero, val will always be decreased by
-// at least 1.
-// val is a pointer to the byte to be faded.
-void fade(unsigned char *val, unsigned char fadeTime)
-{
-  if (*val != 0)
-  {
-    unsigned char subAmt = *val >> fadeTime;  // val * 2^-fadeTime
-    if (subAmt < 1)
-      subAmt = 1;  // make sure we always decrease by at least 1
-    *val -= subAmt;  // decrease value of byte pointed to by val
-  }
-}
-
-
-// ***** PATTERN RandomColorWalk *****
-// This function randomly changes the color of every seventh LED by
-// randomly increasing or decreasing the red, green, and blue components
-// by changeAmount (capped at maxBrightness) or leaving them unchanged.
-// The two preceding and following LEDs are set to progressively dimmer
-// versions of the central color.  The initializeColors argument
-// determines how the colors are initialized:
-//   0: randomly walk the existing colors
-//   1: set the LEDs to alternating red and green segments: (Change to white?)
-//   2: set the LEDs to random colors
-// When true, the dimOnly argument changes the random walk into a 100%
-// chance of LEDs getting dimmer by changeAmount; this can be used for
-// a fade-out effect.
-void randomColorWalk(unsigned char initializeColors, unsigned char dimOnly)
-{
-  const unsigned char maxBrightness = 180;  // cap on LED brightness
-  const unsigned char changeAmount = 3;  // size of random walk step
-  
-  // pick a good starting point for our pattern so the entire strip
-  // is lit well (if we pick wrong, the last four LEDs could be off)
-  unsigned char start;
-  switch (LED_COUNT % 7)
-  {
-    case 0:
-      start = 3;
-      break;
-    case 1:
-      start = 0;
-      break;
-    case 2:
-      start = 1;
-      break;
-    default:
-      start = 2;
-  }
-
-  for (int i = start; i < LED_COUNT; i+=7)
-  {
-    if (initializeColors == 0)
-    {
-      // randomly walk existing colors of every seventh LED
-      // (neighboring LEDs to these will be dimmer versions of the same color)
-      randomWalk(&colors[i].red, maxBrightness, changeAmount, dimOnly ? 1 : 3);
-      randomWalk(&colors[i].green, maxBrightness, changeAmount, dimOnly ? 1 : 3);
-      randomWalk(&colors[i].blue, maxBrightness, changeAmount, dimOnly ? 1 : 3);
-    }
-    else if (initializeColors == 1)
-    {
-      // initialize LEDs to alternating red and green
-      if (i % 2)
-      {
-        colors[i] = rgb_color(maxBrightness, 0, 0);
-      }
-      else
-      {
-        colors[i] = rgb_color(0, maxBrightness, 0);
-      }
-    }
-    else
-    {
-      // initialize LEDs to a string of random colors
-      colors[i] = rgb_color(random(maxBrightness), random(maxBrightness), random(maxBrightness));
-    }
-    
-    // set neighboring LEDs to be progressively dimmer versions of the color we just set
-    if (i >= 1)
-    {
-      colors[i-1] = rgb_color(colors[i].red >> 2, colors[i].green >> 2, colors[i].blue >> 2);
-    }
-    if (i >= 2)
-    {
-      colors[i-2] = rgb_color(colors[i].red >> 3, colors[i].green >> 3, colors[i].blue >> 3);
-    }
-    if (i + 1 < LED_COUNT)
-    {
-      colors[i+1] = colors[i-1];
-    }
-    if (i + 2 < LED_COUNT)
-    {
-      colors[i+2] = colors[i-2];
-    }
-  }
-}
-
-// Helper function for adjusting the colors for the BrightTwinkle
-// and ColorExplosion patterns.  Odd colors get brighter and even
-// colors get dimmer.
-void brightTwinkleColorAdjust(unsigned char *color)
-{
-  if (*color == 255)
-  {
-    // if reached max brightness, set to an even value to start fade
-    *color = 254;
-  }
-  else if (*color % 2)
-  {
-    // if odd, approximately double the brightness
-    // you should only use odd values that are of the form 2^n-1,
-    // which then gets a new value of 2^(n+1)-1
-    // using other odd values will break things
-    *color = *color * 2 + 1;
-  }
-  else if (*color > 0)
-  {
-    fade(color, 4);
-    if (*color % 2)
-    {
-      (*color)--;  // if faded color is odd, subtract one to keep it even
-    }
-  }
-}
-
-
-// Helper function for adjusting the colors for the ColorExplosion
-// pattern.  Odd colors get brighter and even colors get dimmer.
-// The propChance argument determines the likelihood that neighboring
-// LEDs are put into the brightening stage when the central LED color
-// is 31 (chance is: 1 - 1/(propChance+1)).  The neighboring LED colors
-// are pointed to by leftColor and rightColor (it is not important that
-// the leftColor LED actually be on the "left" in your setup).
-void colorExplosionColorAdjust(unsigned char *color, unsigned char propChance,
- unsigned char *leftColor, unsigned char *rightColor)
-{
-  if (*color == 31 && random(propChance+1) != 0)
-  {
-    if (leftColor != 0 && *leftColor == 0)
-    {
-      *leftColor = 1;  // if left LED exists and color is zero, propagate
-    }
-    if (rightColor != 0 && *rightColor == 0)
-    {
-      *rightColor = 1;  // if right LED exists and color is zero, propagate
-    }
-  }
-  brightTwinkleColorAdjust(color);
-}
-
-
-// ***** PATTERN ColorExplosion *****
-// This function creates bursts of expanding, overlapping colors by
-// randomly picking LEDs to brighten and then fade away.  As these LEDs
-// brighten, they have a chance to trigger the same process in
-// neighboring LEDs.  The color of the burst is randomly chosen from
-// among red, green, blue, and white.  If a red burst meets a green
-// burst, for example, the overlapping portion will be a shade of yellow
-// or orange.
-// When true, the noNewBursts argument changes prevents the generation
-// of new bursts; this can be used for a fade-out effect.
-// This function uses a very similar algorithm to the BrightTwinkle
-// pattern.  The main difference is that the random twinkling LEDs of
-// the BrightTwinkle pattern do not propagate to neighboring LEDs.
-void colorExplosion(unsigned char noNewBursts)
-{
-  // adjust the colors of the first LED
-  colorExplosionColorAdjust(&colors[0].red, 9, (unsigned char*)0, &colors[1].red);
-  colorExplosionColorAdjust(&colors[0].green, 9, (unsigned char*)0, &colors[1].green);
-  colorExplosionColorAdjust(&colors[0].blue, 9, (unsigned char*)0, &colors[1].blue);
-
-  for (int i = 1; i < LED_COUNT - 1; i++)
-  {
-    // adjust the colors of second through second-to-last LEDs
-    colorExplosionColorAdjust(&colors[i].red, 9, &colors[i-1].red, &colors[i+1].red);
-    colorExplosionColorAdjust(&colors[i].green, 9, &colors[i-1].green, &colors[i+1].green);
-    colorExplosionColorAdjust(&colors[i].blue, 9, &colors[i-1].blue, &colors[i+1].blue);
-  }
-  
-  // adjust the colors of the last LED
-  colorExplosionColorAdjust(&colors[LED_COUNT-1].red, 9, &colors[LED_COUNT-2].red, (unsigned char*)0);
-  colorExplosionColorAdjust(&colors[LED_COUNT-1].green, 9, &colors[LED_COUNT-2].green, (unsigned char*)0);
-  colorExplosionColorAdjust(&colors[LED_COUNT-1].blue, 9, &colors[LED_COUNT-2].blue, (unsigned char*)0);
-
-  if (!noNewBursts)
-  {
-    // if we are generating new bursts, randomly pick one new LED
-    // to light up
-    for (int i = 0; i < 1; i++)
-    {
-      int j = random(LED_COUNT);  // randomly pick an LED
-
-      switch(random(7))  // randomly pick a color
-      {
-        // 2/7 chance we will spawn a red burst here (if LED has no red component)
-        case 0:
-        case 1:
-          if (colors[j].red == 0)
-          {
-            colors[j].red = 1;
-          }
-          break;
-        
-        // 2/7 chance we will spawn a green burst here (if LED has no green component)
-        case 2:
-        case 3:
-          if (colors[j].green == 0)
-          {
-            colors[j].green = 1;
-          }
-          break;
-
-        // 2/7 chance we will spawn a white burst here (if LED is all off)
-        case 4:
-        case 5:
-          if ((colors[j].red == 0) && (colors[j].green == 0) && (colors[j].blue == 0))
-          {
-            colors[j] = rgb_color(1, 1, 1);
-          }
-          break;
-        
-        // 1/7 chance we will spawn a blue burst here (if LED has no blue component)
-        case 6:
-          if (colors[j].blue == 0)
-          {
-            colors[j].blue = 1;
-          }
-          break;
-          
-        default:
-          break;
-      }
-    }
-  }
-}
-
-
-// ***** PATTERN Gradient *****
-// This function creates a scrolling color gradient that smoothly
-// transforms from red to white to green back to white back to red.
-// This pattern is overlaid with waves of brightness and dimness that
-// scroll at twice the speed of the color gradient.
-void gradient()
-{
-  unsigned int j = 0;
-  
-  // populate colors array with full-brightness gradient colors
-  // (since the array indices are a function of loopCount, the gradient
-  // colors scroll over time)
-  while (j < LED_COUNT && LED_COUNT >= 31)
-  {
-    for (int i = 0; i < 8; i++)
-    {
-      if (j >= LED_COUNT){ break; }
-      colors[(loopCount/2 + j + LED_COUNT)%LED_COUNT] = rgb_color(160 - 20*i, 20*i, (160 - 20*i)*20*i/160);
-      j++;
-    }
-    // transition from green to red over 8 LEDs
-    for (int i = 0; i < 8; i++)
-    {
-      if (j >= LED_COUNT){ break; }
-      colors[(loopCount/2 + j + LED_COUNT)%LED_COUNT] = rgb_color(20*i, 160 - 20*i, (160 - 20*i)*20*i/160);
-      j++;
-    }
-    
-    setPortion(255, 0, 0, 0, 3); //:First portion of thermo
-    delay(2*loopCount);
- 
-    setPortion(255, 0, 0, 0, 10); //:First portion of thermo
-    delay(2*loopCount);
-    
-    setPortion(255, 0, 0, 0, 17); //:First portion of thermo
-    delay(2*loopCount);
-    
-    setPortion(255, 0, 0, 0, 24); //:First portion of thermo
-    delay(2*loopCount);
-    
-    setPortion(255, 0, 0, 0, 30); //:First portion of thermo
-    // transition from red to green over 8 LEDs
-  }
-  
-  // modify the colors array to overlay the waves of dimness
-  // (since the array indices are a function of loopCount, the waves
-  // of dimness scroll over time)
-  const unsigned char fullDarkLEDs = 10;  // number of LEDs to leave fully off
-  const unsigned char fullBrightLEDs = 5;  // number of LEDs to leave fully bright
-  const unsigned char cyclePeriod = 14 + fullDarkLEDs + fullBrightLEDs;
-  
-  // if LED_COUNT is not an exact multiple of our repeating pattern size,
-  // it will not wrap around properly, so we pick the closest LED count
-  // that is an exact multiple of the pattern period (cyclePeriod) and is not
-  // smaller than the actual LED count.
-  unsigned int extendedLEDCount = (((LED_COUNT-1)/cyclePeriod)+1)*cyclePeriod;
-
-  j = 0;
-  while (j < extendedLEDCount)
-  {
-    unsigned int idx;
-    
-    // progressively dim the LEDs
-    for (int i = 1; i < 8; i++)
-    {
-      idx = (j + loopCount) % extendedLEDCount;
-      if (j++ >= extendedLEDCount){ return; }
-      if (idx >= LED_COUNT){ continue; }
-  
-      colors[idx].red >>= i;
-      colors[idx].green >>= i;
-      colors[idx].blue >>= i;      
-    }
-    
-    // turn off these LEDs
-    for (int i = 0; i < fullDarkLEDs; i++)
-    {
-      idx = (j + loopCount) % extendedLEDCount;
-      if (j++ >= extendedLEDCount){ return; }
-      if (idx >= LED_COUNT){ continue; }
-  
-      colors[idx].red = 0;
-      colors[idx].green = 0;
-      colors[idx].blue = 0;
-    }
-    
-    // progressively bring these LEDs back
-    for (int i = 0; i < 7; i++)
-    {
-      idx = (j + loopCount) % extendedLEDCount;
-      if (j++ >= extendedLEDCount){ return; }
-      if (idx >= LED_COUNT){ continue; }
-  
-      colors[idx].red >>= (7 - i);
-      colors[idx].green >>= (7 - i);
-      colors[idx].blue >>= (7 - i);      
-    }
-    
-    // skip over these LEDs to leave them at full brightness
-    j += fullBrightLEDs;
-  }
-}
-
-
-// ***** PATTERN Collision *****
-// This function spawns streams of color from each end of the strip
-// that collide, at which point the entire strip flashes bright white
-// briefly and then fades.  Unlike the other patterns, this function
-// maintains a lot of complicated state data and tells the main loop
-// when it is done by returning 1 (a return value of 0 means it is
-// still in progress).
-unsigned char collision()
-{
-  const unsigned char maxBrightness = 180;  // max brightness for the colors
-  const unsigned char numCollisions = 5;  // # of collisions before pattern ends
-  static unsigned char state = 0;  // pattern state
-  static unsigned int count = 0;  // counter used by pattern
-  
-  if (loopCount == 0)
-  {
-    state = 0;
-  }
-  
-  if (state % 3 == 0)
-  {
-    // initialization state
-    switch (state/3)
-    {
-      case 0:  // first collision: red streams
-        colors[0] = rgb_color(maxBrightness, 0, 0);
-        break;
-      case 1:  // second collision: green streams
-        colors[0] = rgb_color(0, maxBrightness, 0);
-        break;
-      case 2:  // third collision: blue streams
-        colors[0] = rgb_color(0, 0, maxBrightness);
-        break;
-      case 3:  // fourth collision: warm white streams
-        colors[0] = rgb_color(maxBrightness, maxBrightness*4/5, maxBrightness>>3);
-        break;
-      default:  // fifth collision and beyond: random-color streams
-        colors[0] = rgb_color(random(maxBrightness), random(maxBrightness), random(maxBrightness));
-    }
-    
-    // stream is led by two full-white LEDs
-    colors[1] = colors[2] = rgb_color(255, 255, 255);
-    // make other side of the strip a mirror image of this side
-    colors[LED_COUNT - 1] = colors[0];
-    colors[LED_COUNT - 2] = colors[1];
-    colors[LED_COUNT - 3] = colors[2];
-    
-    state++;  // advance to next state
-    count = 8;  // pick the first value of count that results in a startIdx of 1 (see below)
-    return 0;
-  }
-  
-  if (state % 3 == 1)
-  {
-    // stream-generation state; streams accelerate towards each other
-    unsigned int startIdx = count*(count + 1) >> 6;
-    unsigned int stopIdx = startIdx + (count >> 5);
-    count++;
-    if (startIdx < (LED_COUNT + 1)/2)
-    {
-      // if streams have not crossed the half-way point, keep them growing
-      for (int i = 0; i < startIdx-1; i++)
-      {
-        // start fading previously generated parts of the stream
-        fade(&colors[i].red, 5);
-        fade(&colors[i].green, 5);
-        fade(&colors[i].blue, 5);
-        fade(&colors[LED_COUNT - i - 1].red, 5);
-        fade(&colors[LED_COUNT - i - 1].green, 5);
-        fade(&colors[LED_COUNT - i - 1].blue, 5);
-      }
-      for (int i = startIdx; i <= stopIdx; i++)
-      {
-        // generate new parts of the stream
-        if (i >= (LED_COUNT + 1) / 2)
-        {
-          // anything past the halfway point is white
-          colors[i] = rgb_color(255, 255, 255);
-        }
-        else
-        {
-          colors[i] = colors[i-1];
-        }
-        // make other side of the strip a mirror image of this side
-        colors[LED_COUNT - i - 1] = colors[i];
-      }
-      // stream is led by two full-white LEDs
-      colors[stopIdx + 1] = colors[stopIdx + 2] = rgb_color(255, 255, 255);
-      // make other side of the strip a mirror image of this side
-      colors[LED_COUNT - stopIdx - 2] = colors[stopIdx + 1];
-      colors[LED_COUNT - stopIdx - 3] = colors[stopIdx + 2];
-    }
-    else
-    {
-      // streams have crossed the half-way point of the strip;
-      // flash the entire strip full-brightness white (ignores maxBrightness limits)
-      for (int i = 0; i < LED_COUNT; i++)
-      {
-        colors[i] = rgb_color(255, 255, 255);
-      }
-      state++;  // advance to next state
-    }
-    return 0;
-  }
-  
-  if (state % 3 == 2)
-  {
-    // fade state
-    if (colors[0].red == 0 && colors[0].green == 0 && colors[0].blue == 0)
-    {
-      // if first LED is fully off, advance to next state
-      state++;
-      
-      // after numCollisions collisions, this pattern is done
-      return state == 3*numCollisions;
-    }
-    
-    // fade the LEDs at different rates based on the state
-    for (int i = 0; i < LED_COUNT; i++)
-    {
-      switch (state/3)
-      {
-        case 0:  // fade through green
-          fade(&colors[i].red, 3);
-          fade(&colors[i].green, 4);
-          fade(&colors[i].blue, 2);
-          break;
-        case 1:  // fade through red
-          fade(&colors[i].red, 4);
-          fade(&colors[i].green, 3);
-          fade(&colors[i].blue, 2);
-          break;
-        case 2:  // fade through yellow
-          fade(&colors[i].red, 4);
-          fade(&colors[i].green, 4);
-          fade(&colors[i].blue, 3);
-          break;
-        case 3:  // fade through blue
-          fade(&colors[i].red, 3);
-          fade(&colors[i].green, 2);
-          fade(&colors[i].blue, 4);
-          break;
-        default:  // stay white through entire fade
-          fade(&colors[i].red, 4);
-          fade(&colors[i].green, 4);
-          fade(&colors[i].blue, 4);
-      }
-    }
-  }
-  
-  return 0;
-}
-
-/**
-   Set a prtion of LEDs to a color
-   int r, g, b - color
-   int start - first LED
-   int finish - last led
-*/
-void setPortion(int r, int g, int b, int start, int finish) {
-#ifdef DEBUG
-  Serial.print("setPortion: ");
-  Serial.print(start);
-  Serial.print(" | ");
-  Serial.println(finish);
-#endif
-  for (int i = start; i < finish; i++) {
-    leds[i].setRGB( r, g, b);
+// Changes all LEDS to given color
+void allColor(CRGB c){
+  for(int i=0; i<NUM_LEDS; i++){
+    leds[i] = c;
   }
   FastLED.show();
+}
+
+void allRandom(){
+  for(int i=0; i<NUM_LEDS; i++){
+    leds[i] = randomColor();
+  }
+  FastLED.show(); 
+}
+
+// Random disolve colors
+void disolve(int simultaneous, int cycles, int speed){
+  for(int i=0; i<cycles; i++){
+    for(int j=0; j<simultaneous; j++){
+      int idx = random(NUM_LEDS);
+      leds[idx] = CRGB::Black;
+    }
+    FastLED.show();
+    delay(speed);
+  }
+
+  allColor(CRGB::Black);
+}
+
+// Flashes given color
+// If c==NULL, random color flash
+void flash(CRGB c, int count, int speed){
+  for(int i=0; i<count; i++){
+    if(c){
+      allColor(c);
+    }
+    else{
+      allColor(randomColor());
+    }
+    delay(speed);
+    allColor(CRGB::Black);
+    delay(speed);
+  }
+}
+
+// Wipes color from end to end
+void colorWipe(CRGB c, int speed, int direction){
+  for(int i=0; i<NUM_LEDS; i++){
+    if(direction == FORWARD){
+      leds[i] = c;
+    }
+    else{
+      leds[NUM_LEDS-1-i] = c;
+    }
+    FastLED.show();
+    delay(speed);
+  }
+}
+
+// Rainbow colors that slowly cycle across LEDs
+void rainbow(int cycles, int speed){ // TODO direction
+  if(cycles == 0){
+    for(int i=0; i< NUM_LEDS; i++) {
+      leds[i] = Wheel(((i * 256 / NUM_LEDS)) & 255);
+    }
+    FastLED.show();
+  }
+  else{
+    for(int j=0; j<256*cycles; j++) {
+      for(int i=0; i< NUM_LEDS; i++) {
+        leds[i] = Wheel(((i * 256 / NUM_LEDS) + j) & 255);
+      }
+      FastLED.show();
+      delay(speed);
+    }
+  }
+}
+
+// Theater-style crawling lights
+void theaterChase(CRGB c, int cycles, int speed){ // TODO direction
+
+  for (int j=0; j<cycles; j++) {  
+    for (int q=0; q < 3; q++) {
+      for (int i=0; i < NUM_LEDS; i=i+3) {
+        int pos = i+q;
+        leds[pos] = c;    //turn every third pixel on
+      }
+      FastLED.show();
+
+      delay(speed);
+
+      for (int i=0; i < NUM_LEDS; i=i+3) {
+        leds[i+q] = CRGB::Black;        //turn every third pixel off
+      }
+    }
+  }
+}
+
+// Theater-style crawling lights with rainbow effect
+void theaterChaseRainbow(int cycles, int speed){ // TODO direction, duration
+  for (int j=0; j < 256 * cycles; j++) {     // cycle all 256 colors in the wheel
+    for (int q=0; q < 3; q++) {
+      for (int i=0; i < NUM_LEDS; i=i+3) {
+        int pos = i+q;
+        leds[pos] = Wheel( (i+j) % 255);    //turn every third pixel on
+      }
+      FastLED.show();
+
+      delay(speed);
+
+      for (int i=0; i < NUM_LEDS; i=i+3) {
+        leds[i+q] = CRGB::Black;  //turn every third pixel off
+      }
+    }
+  }
+}
+
+// Random flashes of lightning
+void lightning(CRGB c, int simultaneous, int cycles, int speed){
+  int flashes[simultaneous];
+
+  for(int i=0; i<cycles; i++){
+    for(int j=0; j<simultaneous; j++){
+      int idx = random(NUM_LEDS);
+      flashes[j] = idx;
+      leds[idx] = c ? c : randomColor();
+    }
+    FastLED.show();
+    delay(speed);
+    for(int s=0; s<simultaneous; s++){
+      leds[flashes[s]] = CRGB::Black;
+    }
+    delay(speed);
+  }
+}
+
+// Sliding bar across LEDs
+void cylon(CRGB c, int width, int speed){
+  // First slide the leds in one direction
+  for(int i = 0; i <= NUM_LEDS-width; i++) {
+    for(int j=0; j<width; j++){
+      leds[i+j] = c;
+    }
+
+    FastLED.show();
+
+    // now that we've shown the leds, reset to black for next loop
+    for(int j=0; j<5; j++){
+      leds[i+j] = CRGB::Black;
+    }
+    delay(speed);
+  }
+
+  // Now go in the other direction.  
+  for(int i = NUM_LEDS-width; i >= 0; i--) {
+    for(int j=0; j<width; j++){
+      leds[i+j] = c;
+    }
+    FastLED.show();
+    for(int j=0; j<width; j++){
+      leds[i+j] = CRGB::Black;
+    }
+
+    delay(speed);
+  }
+}
+
+// Display alternating stripes
+void stripes(CRGB c1, CRGB c2, int width){
+  for(int i=0; i<NUM_LEDS; i++){
+    if(i % (width * 2) < width){
+      leds[i] = c1;
+    }
+    else{
+      leds[i] = c2;
+    } 
+  }
+  FastLED.show();
+}
+
+// Theater-style crawling of stripes
+void stripesChase(CRGB c1, CRGB c2, int width, int cycles, int speed){ // TODO direction
+
+}
+
+// Input a value 0 to 255 to get a color value.
+// The colours are a transition r - g - b - back to r.
+CRGB Wheel(byte WheelPos) {
+  if(WheelPos < 85) {
+    return CRGB(WheelPos * 3, 255 - WheelPos * 3, 0);
+  } 
+  else if(WheelPos < 170) {
+    WheelPos -= 85;
+    return CRGB(255 - WheelPos * 3, 0, WheelPos * 3);
+  } 
+  else {
+    WheelPos -= 170;
+    return CRGB(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+}
+
+CRGB randomColor(){
+  return Wheel(random(256)); 
 }
