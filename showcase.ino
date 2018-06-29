@@ -2,7 +2,7 @@
 
 // How many leds in your strip?
 #define NUM_LEDS 231
-#define DATA_PIN 6
+#define DATA_PIN 12
 #define FORWARD 0
 #define BACKWARD 1
 #define SLOW 250
@@ -21,7 +21,7 @@ void setup() {
 
 void loop() { 
 
-  rainbow(0,NULL);
+  rainbow(1,FAST);
   delay(3000);
   colorWipe(CRGB::Black,FORWARD,FAST);
   allRandom();
